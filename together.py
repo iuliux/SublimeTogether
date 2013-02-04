@@ -1,3 +1,10 @@
+'''
+Together - Collaborative editing
+
+@author: Iulius Curt <iulius.curt@gmail.com>, http://iuliux.ro
+@license: MIT (http://www.opensource.org/licenses/mit-license.php)
+'''
+
 import sublime
 import sublime_plugin
 
