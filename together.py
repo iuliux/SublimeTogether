@@ -1,5 +1,5 @@
 '''
-Together - Collaborative editing
+Together Sublime-Text-2 plugin - Collaborative editing
 
 @author: Iulius Curt <iulius.curt@gmail.com>, http://iuliux.ro
 @license: MIT (http://www.opensource.org/licenses/mit-license.php)
@@ -8,10 +8,24 @@ Together - Collaborative editing
 import sublime
 import sublime_plugin
 
+import time
+from threading import Thread
+
+
+class Sync(Thread):
+    def __init__(self):
+        super(Sync, self).__init__()
+
+    def run(self):
+        print 'BEFORE >>>'
+        time.sleep(2)
+        print '<<< AFTER'
+
 
 class CaptureEditing(sublime_plugin.EventListener):
 
     def on_modified(self, view):
+        Sync().start()
         i = 0
         for sel in view.sel():
             print '>>> SELECTION NUMBER', i
