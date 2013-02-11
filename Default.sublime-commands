@@ -1,0 +1,10 @@
+[
+    {
+        "caption": "Together: Start new pad",
+        "command": "start_pad"
+    },
+    {
+        "caption": "Together: Stop collaboration on current pad",
+        "command": "stop_pad"
+    }
+]

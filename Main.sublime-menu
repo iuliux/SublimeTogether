@@ -1,0 +1,16 @@
+[
+    {
+        "caption": "Preferences",
+        "mnemonic": "n",
+        "id": "preferences",
+        "children":
+        [
+            {
+                "caption": "Together",
+                "mnemonic": "T",
+                "command": "show_overlay",
+                "args": {"overlay": "command_palette", "text": "Together: "}
+            }
+        ]
+    }
+]
