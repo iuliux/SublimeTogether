@@ -52,7 +52,8 @@ class Conversation:
             resp = self._conn.request_put(resource=self._resource,
                                             body=data,
                                             headers=headers)
-        # else raise UndefinedMethodError
+        else:
+            raise UndefinedMethodError()
 
         # Set response data
         self.response_headers = resp['headers']
