@@ -8,7 +8,6 @@ __author__ = "Iulius Curt <iulius.curt@gmail.com>, http://iuliux.ro"
 import sublime
 import sublime_plugin
 
-import time
 from threading import Thread
 
 from lib.communication import *
@@ -26,15 +25,23 @@ except ConnectionError:
 
 class Session(object):
     """Structure specific for each session. Each pad has it's own session"""
-    def __init__(self, view_id, pad):
+    def __init__(self, view, pad):
         super(Session, self).__init__()
         self.pad = pad
-        self.view_id = view_id
+        self.author = 'A'  # Read it from settings file
+        self.cr_n = -1  # Change request number (logical clock)
+        self.view = view
         self.active = False
+        # Get the local copy of the pad
+        bufferRegion = sublime.Region(0, self.view.size())
+        self.buffer = self.view.substr(bufferRegion)
+
+        print '@@', self.buffer
 
     def initiate(self):
         conv = conv_starter.new(method='PUT', resource='')
         conv.send(self.pad)
+        # Handle response
         code = EncodingHandler.resp_ttoc
         if conv.response_code == code['ok']:
             self.active = True
@@ -46,14 +53,42 @@ class Session(object):
         else:
             self.error = 'Error.'
 
+    def handle_change(self, cr):
+        # Assign a number to this CR and increment current count
+        cr.cr_n = self.cr_n
+        # Send
+        conv = conv_starter.new(method='PUT', resource=self.pad)
+        conv.send(cr.serialize())
+        # Handle response
+        code = EncodingHandler.resp_ttoc
+        if conv.response_code == code['ok']:
+            # Commit the change
+            self.cr_n += 1
+            print 'CR_N)', self.cr_n
+            self.buffer = cr.apply_over(self.buffer)
+            print '@0@', self.buffer
+        elif conv.response_code == code['update_needed']:
+            # Commit updates, then current change
+            self.cr_n = int(conv.response_headers['new_cr_n'])
+            print '########', conv.response_data
+            crs_to_update = EncodingHandler.deserialize_list(conv.response_data)
+            for c in crs_to_update:
+                c_cr = ChangeRequest()
+                c_cr.deserialize(c)
+                self.buffer = c_cr.apply_over(self.buffer)
+            print '@1@', self.buffer
+            # Update current buffer
+        elif conv.response_code == code['generic_error']:
+            self.error = 'Connection error! The pad may become inconsistent.'
+        else:
+            self.error = 'Error.'
+
 
 class CaptureEditing(sublime_plugin.EventListener):
 
     def on_modified(self, view):
         if view.id() not in sessions_by_view:
             return
-
-        # SyncThread().start()
         i = 0
         for sel in view.sel():
             print '>>> SELECTION NUMBER', i
@@ -61,18 +96,30 @@ class CaptureEditing(sublime_plugin.EventListener):
             curr_line, _ = view.rowcol(sel.begin())
             # print 'Curr line', curr_line
             # print 'View ID', view.id()
-            # print 'Sel.begin', sel.begin()
-            pos = sel.begin()
 
             # Get operation
             action, content, _ = view.command_history(0, False)
-
-            # print 'Hist [[', action, ' -> ', content, ']]'
+            op = None
+            value = ''
+            pos = sel.begin()
+            delta = 1
             if action == 'insert':
-                print '  INSERT: pos=<', pos - 1, '> delta=<', 1, '> value=<', content['characters'][-1], '>'
+                pos -= 1
+                print '  INSERT: pos=<', pos, '> delta=<', 1, '> value=<', content['characters'][-1], '>'
+                op = ChangeRequest.ADD_EDIT
+                value = content['characters'][-1]
             elif action == 'left_delete' or action == 'right_delete':
                 print '  DELETE: pos=<', pos, '> delta=<', 1, '>'
-            # https://github.com/nlloyd/SubliminalCollaborator/blob/master/commands.py#L486
+                op = ChangeRequest.DEL_EDIT
+
+            cr = ChangeRequest(pos=pos,
+                                delta=delta,
+                                op=op,
+                                value=value)
+
+            thread = SyncThread(view.id(), cr)
+            thread.start()
+            ThreadProgress(thread, 'Synchronizing', '')
 
     def on_close(self, view):
         print '*Closed*'
@@ -91,14 +138,21 @@ class CaptureEditing(sublime_plugin.EventListener):
 
 
 class SyncThread(Thread):
-    def __init__(self):
+    def __init__(self, view_id, cr):
         super(SyncThread, self).__init__()
+        self.view_id = view_id
+        self.cr = cr
+        self.session = sessions_by_view[view_id]
+        # Augments CR with author info
+        self.cr.author = self.session.author
 
     def run(self):
-        print 'BEFORE >>>'
-        time.sleep(2)
-        print '<<< AFTER'
-        sublime.error_message('error')
+        print 'CR>>>', self.cr
+        if self.session.active:
+            self.session.handle_change(self.cr)
+        else:
+            self.result = False  # Notify ThreadProgress of failure
+            sublime.error_message(self.session.error)
 
 
 class StartPadCommand(sublime_plugin.WindowCommand):
@@ -113,7 +167,7 @@ class StartPadCommand(sublime_plugin.WindowCommand):
         Input panel handler - initiates a new pad with the specified name
         """
         print 'New Session created for', self.window.active_view().id()
-        session = Session(self.window.active_view().id(), input)
+        session = Session(self.window.active_view(), input)
         thread = StartPadThread(session)
         thread.start()
         ThreadProgress(thread, 'Creating the "'+input+'" pad', 'Pad successfully created')
@@ -133,8 +187,9 @@ class StartPadThread(Thread):
     def run(self):
         self.session.initiate()
         if self.session.active:
-            sessions_by_view[self.session.view_id] = self.session
+            sessions_by_view[self.session.view.id()] = self.session
         else:
+            self.result = False  # Notify ThreadProgress of failure
             sublime.error_message(self.session.error)
 
 
