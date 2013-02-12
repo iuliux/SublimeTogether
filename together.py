@@ -14,11 +14,14 @@ from lib.communication import *
 from lib.changerequests import *
 
 
+# Dict to keep track of view-session associations
 sessions_by_view = {}
 
 # Read settings
 settings = sublime.load_settings(__name__ + '.sublime-settings')
 
+# Create a global ConversationStarter
+# (which generates request-response conversations)
 try:
     conv_starter = ConversationStarter(settings.get('server_url'))
     print 'ConversationStarter CREATED!'
@@ -36,9 +39,7 @@ class Session(object):
         self.cr_n = -1  # Change request number (logical clock)
         self.view = view
         self.active = False
-        # Get the local copy of the pad
-        bufferRegion = sublime.Region(0, self.view.size())
-        self.buffer = self.view.substr(bufferRegion)
+        self.buffer = ''
 
         print '@@', self.buffer
 
@@ -48,10 +49,57 @@ class Session(object):
         # Handle response
         code = EncodingHandler.resp_ttoc
         if conv.response_code == code['ok']:
+            # Get the local copy of the pad
+            bufferRegion = sublime.Region(0, self.view.size())
+            self.buffer = self.view.substr(bufferRegion)
             self.active = True
         elif conv.response_code == code['pad_already_exists']:
             self.error = 'The name '+self.pad+' is already in use.'+\
-                ' Please pick another name, or use <Connect to> command.'
+                ' Please pick another name, or use <Join pad> command.'
+        elif conv.response_code == code['generic_error']:
+            self.error = 'Connection error.'
+        else:
+            self.error = 'Error.'
+
+        # TODO: commit the current buffer
+
+    def join(self):
+        # Check if pad exists
+        conv = conv_starter.new(method='GET', resource='')
+        conv.send(self.pad)
+        # Handle response
+        code = EncodingHandler.resp_ttoc
+        if conv.response_code == code['yes']:
+            # Good, proceed
+            pass
+        elif conv.response_code == code['no']:
+            self.error = 'Pad "' + self.pad + '" does not exist. You may ' +\
+                'start a new pad with this name with <Start pad> command.'
+            return
+        elif conv.response_code == code['generic_error']:
+            self.error = 'Connection error.'
+            return
+        else:
+            self.error = 'Error.'
+            return
+
+        # Send update request
+        conv = conv_starter.new(method='GET', resource=self.pad)
+        conv.send(self.cr_n)
+        # Handle response
+        if conv.response_code == code['ok']:
+            # Activate session
+            self.active = True
+        elif conv.response_code == code['update_needed']:
+            # Commit updates, then current change
+            self.cr_n = int(conv.response_headers['new_cr_n'])
+            print '########', conv.response_data
+            # Apply list
+            self._apply_crs(conv.response_data)
+            # Activate session
+            self.active = True
+        elif conv.response_code == code['nan']:
+            self.error = 'Error'
         elif conv.response_code == code['generic_error']:
             self.error = 'Connection error.'
         else:
@@ -60,7 +108,7 @@ class Session(object):
     def handle_change(self, cr):
         # Assign a number to this CR and increment current count
         cr.cr_n = self.cr_n
-        # Send
+        # Send change request
         conv = conv_starter.new(method='PUT', resource=self.pad)
         conv.send(cr.serialize())
         # Handle response
@@ -75,17 +123,27 @@ class Session(object):
             # Commit updates, then current change
             self.cr_n = int(conv.response_headers['new_cr_n'])
             print '########', conv.response_data
-            crs_to_update = EncodingHandler.deserialize_list(conv.response_data)
-            for c in crs_to_update:
-                c_cr = ChangeRequest()
-                c_cr.deserialize(c)
-                self.buffer = c_cr.apply_over(self.buffer)
-            print '@1@', self.buffer
-            # Update current buffer
+            # Apply list
+            self._apply_crs(conv.response_data)
         elif conv.response_code == code['generic_error']:
             self.error = 'Connection error! The pad may become inconsistent.'
         else:
             self.error = 'Error.'
+
+    def _apply_crs(self, crs_list):
+        crs_to_update = EncodingHandler.deserialize_list(crs_list)
+        for c in crs_to_update:
+            c_cr = ChangeRequest()
+            c_cr.deserialize(c)
+            self.buffer = c_cr.apply_over(self.buffer)
+        print '@1@', self.buffer
+
+        # Update current buffer
+        edit = self.view.begin_edit()
+        whole = sublime.Region(0, self.view.size())
+        self.view.erase(edit, whole)
+        self.view.insert(edit, 0, self.buffer)
+        self.view.end_edit(edit)
 
 
 class CaptureEditing(sublime_plugin.EventListener):
@@ -135,10 +193,12 @@ class CaptureEditing(sublime_plugin.EventListener):
         print '*PreSave*'
 
     def on_activated(self, view):
-        print '*Activated*'
+        # print '*Activated*'
+        pass
 
     def on_deactivated(self, view):
-        print '*Deactivated*'
+        # print '*Deactivated*'
+        pass
 
 
 class SyncThread(Thread):
@@ -190,6 +250,41 @@ class StartPadThread(Thread):
 
     def run(self):
         self.session.initiate()
+        if self.session.active:
+            sessions_by_view[self.session.view.id()] = self.session
+        else:
+            self.result = False  # Notify ThreadProgress of failure
+            sublime.error_message(self.session.error)
+
+
+class JoinPadCommand(sublime_plugin.WindowCommand):
+    """Command to join an existing pad from current view"""
+
+    def run(self):
+        self.window.show_input_panel('Pad name', '',
+            self.on_done, self.on_change, self.on_cancel)
+
+    def on_done(self, input):
+        print 'New Session (join) created for', self.window.active_view().id()
+        session = Session(self.window.active_view(), input)
+        thread = JoinPadThread(session)
+        thread.start()
+        ThreadProgress(thread, 'Joining the "'+input+'" pad', 'Join successful')
+
+    def on_change(self, input):
+        pass
+
+    def on_cancel(self):
+        pass
+
+
+class JoinPadThread(Thread):
+    def __init__(self, session):
+        super(JoinPadThread, self).__init__()
+        self.session = session
+
+    def run(self):
+        self.session.join()
         if self.session.active:
             sessions_by_view[self.session.view.id()] = self.session
         else:

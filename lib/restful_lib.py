@@ -41,7 +41,7 @@ class Connection:
         self.host = netloc
         self.path = path
 
-        self.h = httplib.HTTPConnection(netloc)
+        self.h = httplib.HTTPConnection(netloc, strict=False)
         self.h.follow_all_redirects = True
 
     def request_get(self, resource, args=None, headers={}):
@@ -92,8 +92,12 @@ class Connection:
             else:
                 request_path.append(path)
 
+        self.h.set_debuglevel(1)
+
         self.h.request(method.upper(), u'/'.join(request_path), body=body, headers=headers)
+        print '><'
         resp = self.h.getresponse()
+        print 'resp: ', resp
         headers = {}
         for hdr in resp.getheaders():
             headers[hdr[0]] = hdr[1]

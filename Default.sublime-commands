@@ -4,7 +4,18 @@
         "command": "start_pad"
     },
     {
+        "caption": "Together: Join a pad",
+        "command": "join_pad"
+    },
+    {
         "caption": "Together: Stop collaboration on current pad",
         "command": "stop_pad"
+    },
+    {
+        "caption": "Preferences: Together Settings – Default",
+        "command": "open_file", "args":
+        {
+            "file": "${packages}/Together/together.sublime-settings"
+        }
     }
 ]
