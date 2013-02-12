@@ -29,11 +29,6 @@ import urlparse
 import urllib
 
 
-class ConnectionError(Exception):
-    def __str__(self):
-        return "Connection failed"
-
-
 class Connection:
     def __init__(self, base_url):
         self.base_url = base_url
