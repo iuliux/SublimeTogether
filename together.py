@@ -16,10 +16,13 @@ from lib.changerequests import *
 
 sessions_by_view = {}
 
+# Read settings
+settings = sublime.load_settings(__name__ + '.sublime-settings')
+
 try:
-    conv_starter = ConversationStarter("http://localhost:8000")
+    conv_starter = ConversationStarter(settings.get('server_url'))
     print 'ConversationStarter CREATED!'
-except ConnectionError:
+except Exception:
     sublime.error_message("Can't establish the connection to server")
 
 
@@ -27,8 +30,9 @@ class Session(object):
     """Structure specific for each session. Each pad has it's own session"""
     def __init__(self, view, pad):
         super(Session, self).__init__()
+        global settings
         self.pad = pad
-        self.author = 'A'  # Read it from settings file
+        self.author = settings.get('author')  # Read it from settings file
         self.cr_n = -1  # Change request number (logical clock)
         self.view = view
         self.active = False

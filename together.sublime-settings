@@ -1,0 +1,9 @@
+{
+// Please restart the editor for settings changes to be applied
+
+	// The URL of the TogetherServer used
+	"server_url": "http://localhost:8000",
+
+	// Author's name
+	"author": "A"
+}
