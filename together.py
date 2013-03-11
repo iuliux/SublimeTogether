@@ -117,7 +117,9 @@ class Session(object):
             # Commit the change
             self.cr_n += 1
             print 'CR_N)', self.cr_n
-            self.buffer = cr.apply_over(self.buffer)
+            new_buffer = cr.apply_over(self.buffer)
+            if new_buffer:
+                self.buffer = new_buffer
             print '@0@', self.buffer
         elif conv.response_code == code['update_needed']:
             # Commit updates, then current change
@@ -132,14 +134,19 @@ class Session(object):
 
     def _apply_crs(self, crs_list):
         crs_to_update = EncodingHandler.deserialize_list(crs_list)
+        print '#####', crs_to_update
         for c in crs_to_update:
             c_cr = ChangeRequest()
             c_cr.deserialize(c)
+            print self.buffer
             self.buffer = c_cr.apply_over(self.buffer)
+            print '      >', self.buffer
         print '@1@', self.buffer
+        self.update_view()
 
-        # Update current buffer
-        edit = self.view.begin_edit()
+    def update_view(self):
+        '''Update current buffer'''
+        edit = self.view.begin_edit('tog_update')
         whole = sublime.Region(0, self.view.size())
         self.view.erase(edit, whole)
         self.view.insert(edit, 0, self.buffer)
@@ -161,6 +168,10 @@ class CaptureEditing(sublime_plugin.EventListener):
 
             # Get operation
             action, content, _ = view.command_history(0, False)
+            if action == 'tog_update':
+                # Sync update, do nothing
+                return
+
             op = None
             value = ''
             pos = sel.begin()
@@ -173,6 +184,9 @@ class CaptureEditing(sublime_plugin.EventListener):
             elif action == 'left_delete' or action == 'right_delete':
                 print '  DELETE: pos=<', pos, '> delta=<', 1, '>'
                 op = ChangeRequest.DEL_EDIT
+            else:
+                print '[!] Unrecognized action:', action
+                return
 
             cr = ChangeRequest(pos=pos,
                                 delta=delta,
