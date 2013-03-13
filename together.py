@@ -8,7 +8,8 @@ __author__ = "Iulius Curt <iulius.curt@gmail.com>, http://iuliux.ro"
 import sublime
 import sublime_plugin
 
-from threading import Thread
+import threading
+from threading import Thread, Lock
 
 from lib.communication import *
 from lib.changerequests import *
@@ -16,6 +17,9 @@ from lib.changerequests import *
 
 # Dict to keep track of view-session associations
 sessions_by_view = {}
+
+# Lock for regulating message sending to server
+channel_lock = Lock()
 
 # Read settings
 settings = sublime.load_settings(__name__ + '.sublime-settings')
@@ -110,7 +114,9 @@ class Session(object):
         cr.cr_n = self.cr_n
         # Send change request
         conv = conv_starter.new(method='PUT', resource=self.pad)
+        channel_lock.acquire()  # One message at a time
         conv.send(cr.serialize())
+        channel_lock.release()
         # Handle response
         code = EncodingHandler.resp_ttoc
         if conv.response_code == code['ok']:
@@ -156,6 +162,8 @@ class Session(object):
 class CaptureEditing(sublime_plugin.EventListener):
 
     def on_modified(self, view):
+        print "::: Threads alive:", threading.active_count()
+
         if view.id() not in sessions_by_view:
             return
         i = 0
