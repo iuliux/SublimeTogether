@@ -46,6 +46,9 @@ class Session(object):
         self.view = view
         self.active = False
         self.buffer = ''
+        # Producers-Consumers queue
+        self.msgmonitor = MessageProdConsMonitor()
+        self.cr_consumer = ChangesConsumer(self.msgmonitor, self)
 
         print '@@', self.buffer
 
@@ -58,6 +61,9 @@ class Session(object):
             # Get the local copy of the pad
             bufferRegion = sublime.Region(0, self.view.size())
             self.buffer = self.view.substr(bufferRegion)
+
+            # TODO: commit the current buffer
+
             self.active = True
         elif conv.response_code == code['pad_already_exists']:
             self.error = 'The name '+self.pad+' is already in use.'+\
@@ -67,7 +73,10 @@ class Session(object):
         else:
             self.error = 'Error.'
 
-        # TODO: commit the current buffer
+        if self.active:
+            # Start the changes-consumer thread
+            self.cr_consumer.start()
+            print 'Consumer thread started'
 
     def join(self):
         # Check if pad exists
@@ -111,6 +120,11 @@ class Session(object):
         else:
             self.error = 'Error.'
 
+        if self.active:
+            # Start the changes-consumer thread
+            self.cr_consumer.start()
+            print 'Consumer thread started'
+
     def handle_change(self, cr):
         # Assign a number to this CR and increment current count
         cr.cr_n = self.cr_n
@@ -120,30 +134,32 @@ class Session(object):
         channel_lock.acquire()  # One message at a time
         count += 1
         print '------------- SIMULTANEOUS THREADS:', count
-        print '          ---', threading.enumerate()
+        print '         \---', threading.enumerate()
         channel_lock.release()
         try:
-            conv.send(cr.serialize())
+            msg_pair = (conv, cr)
+            self.msgmonitor.add(msg_pair)
         except Exception:
             print '[!] Could not send commit message'
         channel_lock.acquire()  # One message at a time
         count -= 1
         channel_lock.release()
 
+    def handle_response(self, conv, cr):
         # Handle response
         code = EncodingHandler.resp_ttoc
         if conv.response_code == code['ok']:
             # Commit the change
             self.cr_n += 1
-            print 'CR_N)', self.cr_n
+            # print 'CR_N)', self.cr_n
             new_buffer = cr.apply_over(self.buffer)
             if new_buffer:
                 self.buffer = new_buffer
-            print '@0@', self.buffer
+            # print '@0@', self.buffer
         elif conv.response_code == code['update_needed']:
             # Commit updates, then current change
             self.cr_n = int(conv.response_headers['new_cr_n'])
-            print '########', conv.response_data
+            # print '########', conv.response_data
             # Apply list
             self._apply_crs(conv.response_data)
         elif conv.response_code == code['generic_error']:
@@ -153,14 +169,14 @@ class Session(object):
 
     def _apply_crs(self, crs_list):
         crs_to_update = EncodingHandler.deserialize_list(crs_list)
-        print '#####', crs_to_update
+        # print '#####', crs_to_update
         for c in crs_to_update:
             c_cr = ChangeRequest()
             c_cr.deserialize(c)
             print self.buffer
             self.buffer = c_cr.apply_over(self.buffer)
             print '      >', self.buffer
-        print '@1@', self.buffer
+        # print '@1@', self.buffer
         self.update_view()
 
     def update_view(self):
@@ -175,13 +191,11 @@ class Session(object):
 class CaptureEditing(sublime_plugin.EventListener):
     '''Event listener to watch for changes in the local buffer'''
     def on_modified(self, view):
-        print "::: Threads alive:", threading.active_count()
-
         if view.id() not in sessions_by_view:
             return
         i = 0
         for sel in view.sel():
-            print '>>> SELECTION NUMBER', i
+            # print '>>> SELECTION NUMBER', i
             i += 1
             curr_line, _ = view.rowcol(sel.begin())
             # print 'Curr line', curr_line
@@ -199,11 +213,11 @@ class CaptureEditing(sublime_plugin.EventListener):
             delta = 1
             if action == 'insert':
                 pos -= 1
-                print '  INSERT: pos=<', pos, '> delta=<', 1, '> value=<', content['characters'][-1], '>'
+                # print '  INSERT: pos=<', pos, '> delta=<', 1, '> value=<', content['characters'][-1], '>'
                 op = ChangeRequest.ADD_EDIT
                 value = content['characters'][-1]
             elif action == 'left_delete' or action == 'right_delete':
-                print '  DELETE: pos=<', pos, '> delta=<', 1, '>'
+                # print '  DELETE: pos=<', pos, '> delta=<', 1, '>'
                 op = ChangeRequest.DEL_EDIT
             else:
                 print '[!] Unrecognized action:', action
