@@ -8,6 +8,7 @@ __author__ = "Iulius Curt <iulius.curt@gmail.com>, http://iuliux.ro"
 import sublime
 import sublime_plugin
 
+import time
 import threading
 from threading import Thread, Lock
 
@@ -49,6 +50,7 @@ class Session(object):
         # Producers-Consumers queue
         self.msgmonitor = MessageProdConsMonitor()
         self.cr_consumer = ChangesConsumer(self.msgmonitor, self)
+        self.remote_checker = UpdateCheckerThread(self)
 
     def initiate(self):
         conv = conv_starter.new(method='PUT', resource='')
@@ -75,6 +77,8 @@ class Session(object):
             # Start the changes-consumer thread
             self.cr_consumer.start()
             print 'Consumer thread started'
+            self.remote_checker.start()
+            print 'RemoteChecker thread started'
 
     def join(self):
         # Check if pad exists
@@ -121,6 +125,8 @@ class Session(object):
             # Start the changes-consumer thread
             self.cr_consumer.start()
             print 'Consumer thread started'
+            self.remote_checker.start()
+            print 'RemoteChecker thread started'
 
     def handle_change(self, cr):
         # Assign a number to this CR and increment current count
@@ -133,12 +139,11 @@ class Session(object):
         print '------------- SIMULTANEOUS THREADS:', count
         print '         \---', threading.enumerate()
         channel_lock.release()
-        try:
-            msg_pair = (conv, cr)
-            self.msgmonitor.add(msg_pair)
-        except Exception:
-            print '[!] Could not send commit message'
-        channel_lock.acquire()  # One message at a time
+
+        msg_tuple = (MessageProdConsMonitor.COMMIT_MSG, conv, cr)
+        self.msgmonitor.add(msg_tuple)
+
+        channel_lock.acquire()
         count -= 1
         channel_lock.release()
 
@@ -146,13 +151,15 @@ class Session(object):
         # Handle response
         code = EncodingHandler.resp_ttoc
         if conv.response_code == code['ok']:
-            # Commit the change
-            self.cr_n += 1
-            new_buffer = cr.apply_over(self.buffer)
-            if new_buffer:
-                self.buffer = new_buffer
+            # Commit the change (if any)
+            if cr:
+                self.cr_n += 1
+                new_buffer = cr.apply_over(self.buffer)
+                if new_buffer:
+                    self.buffer = new_buffer
+            # Else, remote has no changes
         elif conv.response_code == code['update_needed']:
-            # Commit updates, then current change
+            # Commit updates, then current change (if any)
             self.cr_n = int(conv.response_headers['new_cr_n'])
             # Apply list
             self._apply_crs(conv.response_data)
@@ -160,6 +167,12 @@ class Session(object):
             self.error = 'Connection error! The pad may become inconsistent.'
         else:
             self.error = 'Error.'
+
+    def check_remote(self):
+        # Put an update request on the queue
+        conv = conv_starter.new(method='GET', resource=self.pad)
+        msg_tuple = (MessageProdConsMonitor.UPDATE_MSG, conv, self.cr_n)
+        self.msgmonitor.add(msg_tuple)
 
     def _apply_crs(self, crs_list):
         crs_to_update = EncodingHandler.deserialize_list(crs_list)
@@ -329,6 +342,26 @@ class JoinPadThread(Thread):
         else:
             self.result = False  # Notify ThreadProgress of failure
             sublime.error_message(self.session.error)
+
+
+class UpdateCheckerThread(Thread):
+    def __init__(self, session):
+        super(UpdateCheckerThread, self).__init__(
+            name='UpdateCheckerThread-'+session.pad)
+        self.session = session
+        self._silent = False
+
+    def run(self):
+        while True:
+            if self.session.active:
+                self.session.check_remote()
+                self._silent = False
+            else:
+                self.result = False  # Notify ThreadProgress of failure
+                if not self._silent:
+                    sublime.error_message(self.session.error)
+                    self._silent = True
+            time.sleep(15)
 
 
 class ThreadProgress():

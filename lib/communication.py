@@ -88,7 +88,7 @@ class EncodingHandler:
 
     # Response Type-to-Code
     resp_ttoc = {
-        'ok':               101,  # Generic success message
+        'ok':               200,  # Generic success message
         'generic_error':    108,  # Generic fail message
 
         # PadsManager

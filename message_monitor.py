@@ -16,6 +16,9 @@ from threading import Condition, Thread
 class MessageProdConsMonitor:
     '''Monitor for Producers-Consumers type of message queue'''
 
+    UPDATE_MSG = 0
+    COMMIT_MSG = 1
+
     def __init__(self):
         self.itemCount = 0
         self.empty = Condition()
@@ -26,6 +29,8 @@ class MessageProdConsMonitor:
         self.empty.acquire()
 
         print '[ADD]', item
+        # TODO: (optimization) Before append COMMIT_MSG, remove all UPDATE_MSGs
+        #       that preceed because they are useless.
         self.queue.append(item)
         self.itemCount += 1
         self.empty.notify()
@@ -57,7 +62,12 @@ class ChangesConsumer(Thread):
     def run(self):
         while True:
             item = self.monitor.remove()
-            conv, cr = item
+            msg, conv, cr = item
 
-            conv.send(cr.serialize())
-            self.session.handle_response(conv, cr)
+            if msg == MessageProdConsMonitor.COMMIT_MSG:
+                conv.send(cr.serialize())
+                self.session.handle_response(conv, cr)
+            elif msg == MessageProdConsMonitor.UPDATE_MSG:
+                conv.send(cr)
+
+                self.session.handle_response(conv, None)
