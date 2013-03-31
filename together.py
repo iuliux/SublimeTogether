@@ -50,8 +50,6 @@ class Session(object):
         self.msgmonitor = MessageProdConsMonitor()
         self.cr_consumer = ChangesConsumer(self.msgmonitor, self)
 
-        print '@@', self.buffer
-
     def initiate(self):
         conv = conv_starter.new(method='PUT', resource='')
         conv.send(self.pad)
@@ -108,7 +106,6 @@ class Session(object):
         elif conv.response_code == code['update_needed']:
             # Commit updates, then current change
             self.cr_n = int(conv.response_headers['new_cr_n'])
-            print '########', conv.response_data
             # Apply list
             self._apply_crs(conv.response_data)
             # Activate session
@@ -151,15 +148,12 @@ class Session(object):
         if conv.response_code == code['ok']:
             # Commit the change
             self.cr_n += 1
-            # print 'CR_N)', self.cr_n
             new_buffer = cr.apply_over(self.buffer)
             if new_buffer:
                 self.buffer = new_buffer
-            # print '@0@', self.buffer
         elif conv.response_code == code['update_needed']:
             # Commit updates, then current change
             self.cr_n = int(conv.response_headers['new_cr_n'])
-            # print '########', conv.response_data
             # Apply list
             self._apply_crs(conv.response_data)
         elif conv.response_code == code['generic_error']:
@@ -169,14 +163,10 @@ class Session(object):
 
     def _apply_crs(self, crs_list):
         crs_to_update = EncodingHandler.deserialize_list(crs_list)
-        # print '#####', crs_to_update
         for c in crs_to_update:
             c_cr = ChangeRequest()
             c_cr.deserialize(c)
-            print self.buffer
             self.buffer = c_cr.apply_over(self.buffer)
-            print '      >', self.buffer
-        # print '@1@', self.buffer
         self.update_view()
 
     def update_view(self):
@@ -195,11 +185,8 @@ class CaptureEditing(sublime_plugin.EventListener):
             return
         i = 0
         for sel in view.sel():
-            # print '>>> SELECTION NUMBER', i
             i += 1
             curr_line, _ = view.rowcol(sel.begin())
-            # print 'Curr line', curr_line
-            # print 'View ID', view.id()
 
             # Get operation
             action, content, _ = view.command_history(0, False)
@@ -260,7 +247,6 @@ class SyncThread(Thread):
         self.cr.author = self.session.author
 
     def run(self):
-        print 'CR>>>', self.cr
         if self.session.active:
             self.session.handle_change(self.cr)
         else:

@@ -57,7 +57,6 @@ class ChangesConsumer(Thread):
     def run(self):
         while True:
             item = self.monitor.remove()
-            print '[ChangesConsumer]', item
             conv, cr = item
 
             conv.send(cr.serialize())
