@@ -71,6 +71,12 @@ class Conversation:
         except KeyError:
             pass
 
+    def __repr__(self):
+        return 'Conversation(' + self._method + ', ' + self._resource + ')'
+
+    def __str__(self):
+        return self.__repr__()
+
 
 class UndefinedMethodError(Exception):
     def __str__(self):
