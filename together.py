@@ -13,6 +13,7 @@ from threading import Thread, Lock
 
 from lib.communication import *
 from lib.changerequests import *
+from message_monitor import *
 
 
 # Dict to keep track of view-session associations
@@ -20,6 +21,7 @@ sessions_by_view = {}
 
 # Lock for regulating message sending to server
 channel_lock = Lock()
+count = 0
 
 # Read settings
 settings = sublime.load_settings(__name__ + '.sublime-settings')
@@ -34,7 +36,7 @@ except Exception:
 
 
 class Session(object):
-    """Structure specific for each session. Each pad has it's own session"""
+    '''Structure specific for each session. Each pad has it's own session'''
     def __init__(self, view, pad):
         super(Session, self).__init__()
         global settings
@@ -114,9 +116,19 @@ class Session(object):
         cr.cr_n = self.cr_n
         # Send change request
         conv = conv_starter.new(method='PUT', resource=self.pad)
+        global count
         channel_lock.acquire()  # One message at a time
-        conv.send(cr.serialize())
+        count += 1
+        print '------------- SIMULTANEOUS THREADS:', count
         channel_lock.release()
+        try:
+            conv.send(cr.serialize())
+        except Exception:
+            print '[!] Could not send commit message'
+        channel_lock.acquire()  # One message at a time
+        count -= 1
+        channel_lock.release()
+
         # Handle response
         code = EncodingHandler.resp_ttoc
         if conv.response_code == code['ok']:
@@ -160,7 +172,7 @@ class Session(object):
 
 
 class CaptureEditing(sublime_plugin.EventListener):
-
+    '''Event listener to watch for changes in the local buffer'''
     def on_modified(self, view):
         print "::: Threads alive:", threading.active_count()
 
@@ -197,9 +209,9 @@ class CaptureEditing(sublime_plugin.EventListener):
                 return
 
             cr = ChangeRequest(pos=pos,
-                                delta=delta,
-                                op=op,
-                                value=value)
+                               delta=delta,
+                               op=op,
+                               value=value)
 
             thread = SyncThread(view.id(), cr)
             thread.start()
@@ -242,16 +254,14 @@ class SyncThread(Thread):
 
 
 class StartPadCommand(sublime_plugin.WindowCommand):
-    """Command to initiate a new pad from current view"""
+    '''Command to initiate a new pad from current view'''
 
     def run(self):
         self.window.show_input_panel('Pad name', '',
             self.on_done, self.on_change, self.on_cancel)
 
     def on_done(self, input):
-        """
-        Input panel handler - initiates a new pad with the specified name
-        """
+        '''Input panel handler - initiates a new pad with the specified name'''
         print 'New Session created for', self.window.active_view().id()
         session = Session(self.window.active_view(), input)
         thread = StartPadThread(session)
@@ -280,11 +290,14 @@ class StartPadThread(Thread):
 
 
 class JoinPadCommand(sublime_plugin.WindowCommand):
-    """Command to join an existing pad from current view"""
+    '''Command to join an existing pad from current view'''
 
     def run(self):
-        self.window.show_input_panel('Pad name', '',
-            self.on_done, self.on_change, self.on_cancel)
+        self.window.show_input_panel('Pad name',
+                                     '',
+                                     self.on_done,
+                                     self.on_change,
+                                     self.on_cancel)
 
     def on_done(self, input):
         print 'New Session (join) created for', self.window.active_view().id()
@@ -315,7 +328,7 @@ class JoinPadThread(Thread):
 
 
 class ThreadProgress():
-    """
+    '''
     Animates an indicator, [=   ], in the status area while a thread runs
     Copied from the PackageControl project
     @thread:
@@ -324,7 +337,7 @@ class ThreadProgress():
         The message to display next to the activity indicator
     @success_message:
         The message to display once the thread is complete
-    """
+    '''
 
     def __init__(self, thread, message, success_message):
         self.thread = thread
@@ -345,8 +358,8 @@ class ThreadProgress():
         before = i % self.size
         after = (self.size - 1) - before
 
-        sublime.status_message('%s [%s=%s]' % \
-            (self.message, ' ' * before, ' ' * after))
+        sublime.status_message('%s [%s=%s]' %
+                               (self.message, ' ' * before, ' ' * after))
 
         if not after:
             self.addend = -1

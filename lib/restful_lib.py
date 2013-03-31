@@ -92,12 +92,12 @@ class Connection:
             else:
                 request_path.append(path)
 
-        self.h.set_debuglevel(1)
+        self.h.set_debuglevel(0)
 
         self.h.request(method.upper(), u'/'.join(request_path), body=body, headers=headers)
-        print '><'
+        # print '><'
         resp = self.h.getresponse()
-        print 'resp: ', resp
+        # print 'resp: ', resp
         headers = {}
         for hdr in resp.getheaders():
             headers[hdr[0]] = hdr[1]
