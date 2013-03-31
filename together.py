@@ -120,6 +120,7 @@ class Session(object):
         channel_lock.acquire()  # One message at a time
         count += 1
         print '------------- SIMULTANEOUS THREADS:', count
+        print '          ---', threading.enumerate()
         channel_lock.release()
         try:
             conv.send(cr.serialize())
@@ -237,7 +238,7 @@ class CaptureEditing(sublime_plugin.EventListener):
 
 class SyncThread(Thread):
     def __init__(self, view_id, cr):
-        super(SyncThread, self).__init__()
+        super(SyncThread, self).__init__(name='SyncThread')
         self.view_id = view_id
         self.cr = cr
         self.session = sessions_by_view[view_id]
@@ -257,8 +258,11 @@ class StartPadCommand(sublime_plugin.WindowCommand):
     '''Command to initiate a new pad from current view'''
 
     def run(self):
-        self.window.show_input_panel('Pad name', '',
-            self.on_done, self.on_change, self.on_cancel)
+        self.window.show_input_panel('Pad name',
+                                     '',
+                                     self.on_done,
+                                     self.on_change,
+                                     self.on_cancel)
 
     def on_done(self, input):
         '''Input panel handler - initiates a new pad with the specified name'''
@@ -277,7 +281,7 @@ class StartPadCommand(sublime_plugin.WindowCommand):
 
 class StartPadThread(Thread):
     def __init__(self, session):
-        super(StartPadThread, self).__init__()
+        super(StartPadThread, self).__init__(name='StartPadThread-'+session.pad)
         self.session = session
 
     def run(self):
@@ -315,7 +319,7 @@ class JoinPadCommand(sublime_plugin.WindowCommand):
 
 class JoinPadThread(Thread):
     def __init__(self, session):
-        super(JoinPadThread, self).__init__()
+        super(JoinPadThread, self).__init__(name='JoinPadThread-'+session.pad)
         self.session = session
 
     def run(self):
