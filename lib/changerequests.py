@@ -21,6 +21,9 @@ class ChangeRequest(object):
         self.author, self.cr_n, self.pos, self.delta, self.op, self.value =\
             author, cr_n, pos, delta, op, value
 
+        if self.value == ':':
+            self.value = '\\:'
+
     # Edit types
     ADD_EDIT = 0
     DEL_EDIT = 1
@@ -50,9 +53,13 @@ class ChangeRequest(object):
 
     def deserialize(self, edit):
         pattern = re.compile(
-            r'(?P<auth>.+?):(?P<cr>-?[0-9a-z]+?):(?P<pos>[0-9a-z]+?)(?P<op>[+-]?)(?P<delta>[0-9a-z]+?):(?P<data>.*?):'
+            r'(?P<auth>.+?):(?P<cr>-?[0-9a-z]+?):(?P<pos>[0-9a-z]+?)(?P<op>[+-]?)(?P<delta>[0-9a-z]+?):(?P<data>(\\:|[^:])*?):'
         )
-        sections = re.search(pattern, edit).groups()
+        try:
+            sections = re.search(pattern, edit).groups()
+        except AttributeError:
+            print 'Unable to parse change request. Bad format!'
+            return
 
         op = ChangeRequest.DEL_EDIT
         if sections[3] == '+':
@@ -67,10 +74,11 @@ class ChangeRequest(object):
         self.value = sections[5]
 
     def apply_over(self, instr):
+        val = self.value.replace('\\', '')
         if self.op == ChangeRequest.ADD_EDIT:
             head = instr[:self.pos]
             tail = instr[self.pos:]
-            return head + self.value + tail
+            return head + val + tail
         elif self.op == ChangeRequest.DEL_EDIT:
             head = instr[:self.pos]
             tail = instr[self.pos+self.delta:]
