@@ -89,26 +89,26 @@ class EncodingHandler:
     # Response Type-to-Code
     resp_ttoc = {
         'ok':               200,  # Generic success message
-        'generic_error':    108,  # Generic fail message
+        'generic_error':    500,  # Generic fail message
 
         # PadsManager
-            # GET  (110~119)
-            'yes':                  110,  # Positive answer
-            'no':                   111,  # Negative answer (not error)
+            # GET
+            'yes':                  202,  # Positive answer
+            'no':                   203,  # Negative answer (not error)
 
-            # POST  (130~139)
+            # POST
 
-            # PUT  (150~159)
-            'pad_already_exists':   150,  # Error message
+            # PUT
+            'pad_already_exists':   409,  # Error message
 
         # Pad
-            # GET  (120~129)
-            "nan":                  120,  # Not a number
+            # GET
+            "nan":                  501,  # Not a number
 
-            # POST  (140~149)
+            # POST
 
-            # PUT  (160~169)
-            'update_needed':        160,  # Additional updates are in msg-body
+            # PUT
+            'update_needed':        206,  # Additional updates are in msg-body
     }
     # For reverse look-up
     # resp_ctot = {key: value for (value, key) in resp_ttoc.items()}
