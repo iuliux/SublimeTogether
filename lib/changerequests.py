@@ -27,22 +27,30 @@ class ChangeRequest(object):
 
     def serialize(self):
         """Produces a string that encodes the CR"""
+
+        def baseN(x, b=36, numerals="0123456789abcdefghijklmnopqrstuvwxyz"):
+            if x < 0:
+                return x
+            return (x == 0) and numerals[0] or \
+                   (baseN(x // b, b, numerals).lstrip(numerals[0]) +
+                    numerals[x % b])
+
         parts = {}
         parts['op'] = '-'
         if self.op == ChangeRequest.ADD_EDIT:
             parts['op'] = '+'
-        # TODO: Encode numbers in a higher base (36)
         parts['auth'] = self.author
-        parts['cr_n'] = str(self.cr_n)
-        parts['pos'] = str(self.pos)
-        parts['delta'] = str(self.delta)
+        # Encode numbers in a higher base (36)
+        parts['cr_n'] = baseN(self.cr_n)
+        parts['pos'] = baseN(self.pos)
+        parts['delta'] = baseN(self.delta)
         parts['content'] = self.value
 
         return "%(auth)s:%(cr_n)s:%(pos)s%(op)s%(delta)s:%(content)s:" % parts
 
     def deserialize(self, edit):
         pattern = re.compile(
-            r'(?P<auth>.+?):(?P<cr>-?[0-9]+?):(?P<pos>[0-9]+?)(?P<op>[+-]?)(?P<delta>[0-9]+?):(?P<data>.*?):'
+            r'(?P<auth>.+?):(?P<cr>-?[0-9a-z]+?):(?P<pos>[0-9a-z]+?)(?P<op>[+-]?)(?P<delta>[0-9a-z]+?):(?P<data>.*?):'
         )
         sections = re.search(pattern, edit).groups()
 
@@ -51,9 +59,10 @@ class ChangeRequest(object):
             op = ChangeRequest.ADD_EDIT
 
         self.author = sections[0]
-        self.cr_n = int(sections[1])
-        self.pos = int(sections[2])
-        self.delta = int(sections[4])
+        # Decode numbers from base 36
+        self.cr_n = int(sections[1], 36)
+        self.pos = int(sections[2], 36)
+        self.delta = int(sections[4], 36)
         self.op = op
         self.value = sections[5]
 
