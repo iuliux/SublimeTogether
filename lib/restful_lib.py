@@ -74,6 +74,8 @@ class Connection:
             headers['Content-Type'] = 'text/plain'
 
             if args:
+                print 'ARGS:', args
+                print 'ARGS(encoded):', urllib.urlencode(args)
                 if method == "get":
                     path += u"?" + urllib.urlencode(args)
                 elif method == "put" or method == "post":
@@ -94,10 +96,22 @@ class Connection:
 
         self.h.set_debuglevel(0)
 
+        resp = None
+        # success = False
+        # while not success:
+        #     try:
+        headers['Accept'] = '*/*'
+        # print 'RESOURCE:', u'/'.join(request_path)
+        # print 'BODY:', body
+        # print 'HEADERS:', headers
         self.h.request(method.upper(), u'/'.join(request_path), body=body, headers=headers)
-        # print '><'
+        print 'SENT'
         resp = self.h.getresponse()
-        # print 'resp: ', resp
+        print 'resp: ', resp
+
+            #     success = True
+            # except Exception:
+            #     print 'Retry...'
         headers = {}
         for hdr in resp.getheaders():
             headers[hdr[0]] = hdr[1]
