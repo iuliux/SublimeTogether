@@ -23,6 +23,12 @@ class ChangeRequest(object):
 
         if self.value == ':':
             self.value = '\\:'
+        elif self.value == '\n':
+            self.value = '\\n'
+        elif self.value == '\r':
+            self.value = '\\r'
+        elif self.value == '\t':
+            self.value = '\\t'
 
     # Edit types
     ADD_EDIT = 0
@@ -74,7 +80,10 @@ class ChangeRequest(object):
         self.value = sections[5]
 
     def apply_over(self, instr):
-        val = self.value.replace('\\', '')
+        val = self.value.replace('\\n', '\n')
+        val = val.replace('\\r', '\r')
+        val = val.replace('\\t', '\t')
+        val = val.replace('\\:', ':')
         if self.op == ChangeRequest.ADD_EDIT:
             head = instr[:self.pos]
             tail = instr[self.pos:]
