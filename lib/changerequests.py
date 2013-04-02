@@ -155,4 +155,5 @@ class EncodingHandler:
     @staticmethod
     def deserialize_list(sl):
         '''Deserializes a serialized list'''
+        # FIXME: this will not handle '>' inserts right
         return sl.split('>')
