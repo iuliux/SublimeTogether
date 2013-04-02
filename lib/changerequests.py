@@ -110,6 +110,49 @@ class ChangeRequest(object):
         else:
             delta = str(self.delta)
 
-        return '<' + self.author + '  CR:' + str(self.cr_n) +\
-                '  (' + str(self.pos) + ':' + delta + ')  ' +\
-                oper + ':' + str(self.value) + '>'
+        return '<' + self.author + '  CR:' + str(self.cr_n) + \
+               '  (' + str(self.pos) + ':' + delta + ')  ' + \
+               oper + ':' + str(self.value) + '>'
+
+
+class EncodingHandler:
+
+    # Response Type-to-Code
+    resp_ttoc = {
+        'ok':               200,  # Generic success message
+        'generic_error':    500,  # Generic fail message
+
+        # PadsManager
+            # GET
+            'yes':                  202,  # Positive answer
+            'no':                   203,  # Negative answer (not error)
+
+            # POST
+
+            # PUT
+            'pad_already_exists':   409,  # Error message
+
+        # Pad
+            # GET
+            "nan":                  501,  # Not a number
+
+            # POST
+
+            # PUT
+            'update_needed':        206,  # Additional updates are in msg-body
+    }
+    # For reverse look-up
+    # resp_ctot = {key: value for (value, key) in resp_ttoc.items()}
+    resp_ctot = {}
+    for tp in resp_ttoc:
+        resp_ctot[resp_ttoc[tp]] = tp
+
+    @staticmethod
+    def serialize_list(l):
+        '''Serializes a list into a string'''
+        return '>'.join(l)
+
+    @staticmethod
+    def deserialize_list(sl):
+        '''Deserializes a serialized list'''
+        return sl.split('>')
