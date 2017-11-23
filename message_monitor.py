@@ -28,7 +28,7 @@ class MessageProdConsMonitor:
         '''Add produced item to the queue'''
         self.empty.acquire()
 
-        print '[ADD]', item
+        print('[ADD]', item)
         # TODO: (optimization) Before append COMMIT_MSG, remove all UPDATE_MSGs
         #       that preceed because they are useless.
         self.queue.append(item)
@@ -46,7 +46,7 @@ class MessageProdConsMonitor:
 
         item = self.queue.pop(0)
         self.itemCount -= 1
-        print '[RM]', item
+        print('[RM]', item)
 
         self.empty.release()
 

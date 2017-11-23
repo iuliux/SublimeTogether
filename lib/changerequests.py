@@ -64,7 +64,7 @@ class ChangeRequest(object):
         try:
             sections = re.search(pattern, edit).groups()
         except AttributeError:
-            print 'Unable to parse change request. Bad format!'
+            print('Unable to parse change request. Bad format!')
             return
 
         op = ChangeRequest.DEL_EDIT
@@ -93,7 +93,7 @@ class ChangeRequest(object):
             tail = instr[self.pos+self.delta:]
             return head + tail
         else:
-            print 'UNKNOWN OPERATION'
+            print('UNKNOWN OPERATION')
 
     def __str__(self):
         return self.__repr__()

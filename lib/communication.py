@@ -1,5 +1,14 @@
-from restful_lib import Connection
-from changerequests import *
+import sys
+
+
+st_version = 2 if sys.version_info < (3,) else 3
+
+if st_version == 3:
+    from .restful_lib import Connection
+    from .changerequests import *
+elif st_version == 2:
+    from restful_lib import Connection
+    from changerequests import *
 
 
 class ConversationStarter:

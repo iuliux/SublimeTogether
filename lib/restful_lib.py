@@ -24,8 +24,19 @@ __license__ = 'GPL http://www.gnu.org/licenses/gpl.txt'
 __author__ = "Benjamin O'Steen <bosteen@gmail.com>"
 __version__ = '0.1'
 
-import httplib
-import urlparse
+
+import sys
+
+
+st_version = 2 if sys.version_info < (3,) else 3
+
+if st_version == 3:
+    import http.client as httplib
+    import urllib.parse as urlparse
+elif st_version == 2:
+    import httplib
+    import urlparse
+
 import urllib
 
 
@@ -74,8 +85,8 @@ class Connection:
             headers['Content-Type'] = 'text/plain'
 
             if args:
-                print 'ARGS:', args
-                print 'ARGS(encoded):', urllib.urlencode(args)
+                print('ARGS:', args)
+                print('ARGS(encoded):', urllib.urlencode(args))
                 if method == "get":
                     path += u"?" + urllib.urlencode(args)
                 elif method == "put" or method == "post":
@@ -101,17 +112,17 @@ class Connection:
         # while not success:
         #     try:
         headers['Accept'] = '*/*'
-        # print 'RESOURCE:', u'/'.join(request_path)
-        # print 'BODY:', body
-        # print 'HEADERS:', headers
+        # print('RESOURCE:', u'/'.join(request_path))
+        # print('BODY:', body)
+        # print('HEADERS:', headers)
         self.h.request(method.upper(), u'/'.join(request_path), body=body, headers=headers)
-        print 'SENT'
+        print('SENT')
         resp = self.h.getresponse()
-        print 'resp: ', resp
+        print('resp: ', resp)
 
             #     success = True
             # except Exception:
-            #     print 'Retry...'
+            #     print('Retry...')
         headers = {}
         for hdr in resp.getheaders():
             headers[hdr[0]] = hdr[1]

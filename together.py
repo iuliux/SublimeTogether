@@ -5,6 +5,8 @@ Together Sublime-Text-2 plugin - Collaborative editing
 __license__ = 'MIT http://www.opensource.org/licenses/mit-license.php'
 __author__ = "Iulius Curt <iulius.curt@gmail.com>, http://iuliux.ro"
 
+import sys
+
 import sublime
 import sublime_plugin
 
@@ -12,9 +14,17 @@ import time
 import threading
 from threading import Thread, Lock
 
-from lib.communication import *
-from lib.changerequests import *
-from message_monitor import *
+
+st_version = 2 if sys.version_info < (3,) else 3
+
+if st_version == 3:
+    from .lib.communication import *
+    from .lib.changerequests import *
+    from .message_monitor import *
+elif st_version == 2:
+    from lib.communication import *
+    from lib.changerequests import *
+    from message_monitor import *
 
 
 # Dict to keep track of view-session associations
@@ -31,7 +41,7 @@ settings = sublime.load_settings(__name__ + '.sublime-settings')
 # (which generates request-response conversations)
 try:
     conv_starter = ConversationStarter(settings.get('server_url'))
-    print 'ConversationStarter CREATED!'
+    print('ConversationStarter CREATED!')
 except Exception:
     sublime.error_message("Can't establish the connection to server")
 
@@ -66,7 +76,7 @@ class Session(object):
 
             self.active = True
         elif conv.response_code == code['pad_already_exists']:
-            self.error = 'The name '+self.pad+' is already in use.'+\
+            self.error = 'The name ' + self.pad + ' is already in use.' + \
                 ' Please pick another name, or use <Join pad> command.'
         elif conv.response_code == code['generic_error']:
             self.error = 'Connection error.'
@@ -76,9 +86,9 @@ class Session(object):
         if self.active:
             # Start the changes-consumer thread
             self.cr_consumer.start()
-            print 'Consumer thread started'
+            print('Consumer thread started')
             self.remote_checker.start()
-            print 'RemoteChecker thread started'
+            print('RemoteChecker thread started')
 
     def join(self):
         # Check if pad exists
@@ -124,9 +134,9 @@ class Session(object):
         if self.active:
             # Start the changes-consumer thread
             self.cr_consumer.start()
-            print 'Consumer thread started'
+            print('Consumer thread started')
             self.remote_checker.start()
-            print 'RemoteChecker thread started'
+            print('RemoteChecker thread started')
 
     def handle_change(self, cr):
         # Assign a number to this CR and increment current count
@@ -136,8 +146,8 @@ class Session(object):
         global count
         channel_lock.acquire()  # One message at a time
         count += 1
-        print '------------- SIMULTANEOUS THREADS:', count
-        print '         \---', threading.enumerate()
+        print('------------- SIMULTANEOUS THREADS:', count)
+        print('         \---', threading.enumerate())
         channel_lock.release()
 
         msg_tuple = (MessageProdConsMonitor.COMMIT_MSG, conv, cr)
@@ -213,14 +223,14 @@ class CaptureEditing(sublime_plugin.EventListener):
             delta = 1
             if action == 'insert':
                 pos -= 1
-                # print '  INSERT: pos=<', pos, '> delta=<', 1, '> value=<', content['characters'][-1], '>'
+                # print('  INSERT: pos=<', pos, '> delta=<', 1, '> value=<', content['characters'][-1], '>')
                 op = ChangeRequest.ADD_EDIT
                 value = content['characters'][-1]
             elif action == 'left_delete' or action == 'right_delete':
-                # print '  DELETE: pos=<', pos, '> delta=<', 1, '>'
+                # print('  DELETE: pos=<', pos, '> delta=<', 1, '>')
                 op = ChangeRequest.DEL_EDIT
             else:
-                print '[!] Unrecognized action:', action
+                print('[!] Unrecognized action:', action)
                 return
 
             cr = ChangeRequest(pos=pos,
@@ -233,20 +243,20 @@ class CaptureEditing(sublime_plugin.EventListener):
             ThreadProgress(thread, 'Synchronizing', '')
 
     def on_close(self, view):
-        print '*Closed*'
+        print('*Closed*')
 
     def on_new(self, view):
-        print '*New*'
+        print('*New*')
 
     def on_pre_save(self, view):
-        print '*PreSave*'
+        print('*PreSave*')
 
     def on_activated(self, view):
-        # print '*Activated*'
+        # print('*Activated*')
         pass
 
     def on_deactivated(self, view):
-        # print '*Deactivated*'
+        # print('*Deactivated*')
         pass
 
 
@@ -279,11 +289,11 @@ class StartPadCommand(sublime_plugin.WindowCommand):
 
     def on_done(self, input):
         '''Input panel handler - initiates a new pad with the specified name'''
-        print 'New Session created for', self.window.active_view().id()
+        print('New Session created for', self.window.active_view().id())
         session = Session(self.window.active_view(), input)
         thread = StartPadThread(session)
         thread.start()
-        ThreadProgress(thread, 'Creating the "'+input+'" pad', 'Pad successfully created')
+        ThreadProgress(thread, 'Creating the "' + input + '" pad', 'Pad successfully created')
 
     def on_change(self, input):
         pass
@@ -317,11 +327,11 @@ class JoinPadCommand(sublime_plugin.WindowCommand):
                                      self.on_cancel)
 
     def on_done(self, input):
-        print 'New Session (join) created for', self.window.active_view().id()
+        print('New Session (join) created for', self.window.active_view().id())
         session = Session(self.window.active_view(), input)
         thread = JoinPadThread(session)
         thread.start()
-        ThreadProgress(thread, 'Joining the "'+input+'" pad', 'Join successful')
+        ThreadProgress(thread, 'Joining the "' + input + '" pad', 'Join successful')
 
     def on_change(self, input):
         pass
